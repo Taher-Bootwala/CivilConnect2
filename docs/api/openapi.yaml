@@ -1,0 +1,395 @@
+openapi: 3.0.3
+info:
+  title: CivilConnect Core API
+  version: 1.0.0
+  description: |
+    Phase 3 authenticated booking and onboarding API. Financial amounts and
+    authorization are calculated/verified by Supabase Edge Functions and
+    PostgreSQL, never by the client.
+servers:
+  - url: https://{project}.supabase.co/functions/v1
+    variables:
+      project:
+        default: your-project
+tags:
+  - name: Profile
+  - name: Discovery
+  - name: Booking
+  - name: Professional
+security:
+  - bearerAuth: []
+paths:
+  /profile:
+    get:
+      tags: [Profile]
+      summary: Read the authenticated profile
+      responses:
+        '200': { $ref: '#/components/responses/ProfileResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [Profile]
+      summary: Update customer-editable profile fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullName: { type: string, maxLength: 160 }
+                avatarPath: { type: string, maxLength: 500, nullable: true }
+      responses:
+        '200': { $ref: '#/components/responses/ProfileResponse' }
+  /service-discovery:
+    get:
+      tags: [Discovery]
+      summary: List active service categories and services
+      parameters:
+        - { in: query, name: q, schema: { type: string, maxLength: 120 } }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: Catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [categories, services]
+                properties:
+                  categories: { type: array, items: { type: object } }
+                  services: { type: array, items: { type: object } }
+  /nearby-professionals:
+    post:
+      tags: [Discovery]
+      summary: Find eligible professionals ranked by Bayesian rating and distance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NearbyRequest'
+      responses:
+        '200':
+          description: Ranked professionals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  professionals: { type: array, items: { type: object } }
+  /create-booking:
+    post:
+      tags: [Booking]
+      summary: Create a booking without collecting an upfront charge
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBookingRequest'
+      responses:
+        '201':
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [booking_id, payment_required_now]
+                properties:
+                  booking_id: { type: string, format: uuid }
+                  payment_required_now: { type: boolean, const: false }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /dispatch-booking:
+    post:
+      tags: [Booking]
+      summary: Dispatch an automatic-match booking to eligible professionals
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bookingId]
+              properties:
+                bookingId: { type: string, format: uuid }
+                maxCandidates: { type: integer, minimum: 1, maximum: 10, default: 3 }
+      responses:
+        '200':
+          description: Dispatch attempts created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking_id: { type: string, format: uuid }
+                  assignments_created: { type: integer }
+  /booking-action:
+    post:
+      tags: [Booking]
+      summary: Perform a guarded booking lifecycle action
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bookingId, action]
+              properties:
+                bookingId: { type: string, format: uuid }
+                action:
+                  type: string
+                  enum: [accept, reject, on_the_way, arrive, start, work_done, cancel]
+                reason: { type: string, maxLength: 500 }
+                otp: { type: string, minLength: 6, maxLength: 12 }
+                latitude: { type: number, minimum: -90, maximum: 90 }
+                longitude: { type: number, minimum: -180, maximum: 180 }
+                accuracyM: { type: number, minimum: 0 }
+      responses:
+        '200':
+          description: Updated booking state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking_id: { type: string, format: uuid }
+                  booking_status: { type: string }
+  /professional-onboarding:
+    post:
+      tags: [Professional]
+      summary: Create or update a professional onboarding profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingRequest'
+      responses:
+        '201': { description: Professional profile created or updated }
+  /kyc-upload-url:
+    post:
+      tags: [Professional]
+      summary: Create a private signed upload URL for a KYC document
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [documentType, mimeType, byteSize]
+              properties:
+                documentType: { type: string, enum: [identity, address, tax, bank, background_check, other] }
+                mimeType: { type: string, enum: [image/jpeg, image/png, application/pdf] }
+                byteSize: { type: integer, minimum: 1, maximum: 10000000 }
+      responses:
+        '201': { description: Signed private upload URL }
+  /kyc-submit:
+    post:
+      tags: [Professional]
+      summary: Submit uploaded KYC documents for review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [documents]
+              properties:
+                documents:
+                  type: array
+                  minItems: 1
+                  maxItems: 10
+                  items: { type: object }
+      responses:
+        '201': { description: KYC submitted }
+  /submit-quote:
+    post:
+      tags: [Booking]
+      summary: Submit a backend-calculated final quote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bookingId, lineItems]
+              properties:
+                bookingId: { type: string, format: uuid }
+                lineItems: { type: array, minItems: 1, maxItems: 50, items: { type: object } }
+                outOfRangeReason: { type: string, maxLength: 1000 }
+      responses:
+        '201': { description: Quote submitted for explicit approval }
+  /create-payment-order:
+    post:
+      tags: [Booking]
+      summary: Create a server-priced Razorpay order after quote approval
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bookingId]
+              properties: { bookingId: { type: string, format: uuid } }
+      responses:
+        '201': { description: Razorpay order details for client checkout }
+  /verify-payment:
+    post:
+      tags: [Booking]
+      summary: Verify provider signature and authoritative Razorpay payment status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paymentId, orderId, providerPaymentId, signature]
+              properties:
+                paymentId: { type: string, format: uuid }
+                orderId: { type: string }
+                providerPaymentId: { type: string }
+                signature: { type: string }
+      responses:
+        '200': { description: Provider-confirmed payment state }
+  /razorpay-webhook:
+    post:
+      security: []
+      tags: [Booking]
+      summary: Receive signed Razorpay webhook events
+      responses:
+        '200': { description: Event persisted and processed idempotently }
+  /refund-request:
+    post:
+      tags: [Booking]
+      summary: Request a full or partial refund for a captured online payment
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bookingId, amountPaise, reason]
+              properties:
+                bookingId: { type: string, format: uuid }
+                amountPaise: { type: integer, minimum: 1 }
+                reason: { type: string, minLength: 5, maxLength: 1000 }
+      responses:
+        '201': { description: Refund request created }
+  /create-settlement-order:
+    post:
+      tags: [Professional]
+      summary: Create a provider order for professional cash-dues settlement
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amountPaise]
+              properties: { amountPaise: { type: integer, minimum: 1 } }
+      responses:
+        '201': { description: Settlement order created }
+  /request-payout:
+    post:
+      tags: [Professional]
+      summary: Request an eligible professional payout
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amountPaise]
+              properties: { amountPaise: { type: integer, minimum: 1 } }
+      responses:
+        '201': { description: Payout request pending approved provider processing }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 120 }
+  schemas:
+    NearbyRequest:
+      type: object
+      required: [serviceId, latitude, longitude, scheduledStart, scheduledEnd]
+      properties:
+        serviceId: { type: string, format: uuid }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        scheduledStart: { type: string, format: date-time }
+        scheduledEnd: { type: string, format: date-time }
+        limit: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    CreateBookingRequest:
+      type: object
+      required: [serviceId, mode, scheduledStart, scheduledEnd, problemDescription, latitude, longitude, addressSnapshot]
+      properties:
+        serviceId: { type: string, format: uuid }
+        mode: { type: string, enum: [selected_professional, automatic_match] }
+        selectedProfessionalId: { type: string, format: uuid, nullable: true }
+        scheduledStart: { type: string, format: date-time }
+        scheduledEnd: { type: string, format: date-time }
+        problemDescription: { type: string, maxLength: 4000 }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        accuracyM: { type: number, minimum: 0 }
+        addressSnapshot: { type: string, maxLength: 500 }
+        flatNumber: { type: string, maxLength: 120 }
+        landmark: { type: string, maxLength: 240 }
+        directions: { type: string, maxLength: 1000 }
+    OnboardingRequest:
+      type: object
+      required: [fullName, serviceIds, serviceArea, availability]
+      properties:
+        fullName: { type: string, maxLength: 160 }
+        bio: { type: string, maxLength: 2000 }
+        experienceYears: { type: number, minimum: 0, maximum: 80 }
+        serviceIds: { type: array, maxItems: 30, items: { type: string, format: uuid } }
+        serviceArea: { type: object }
+        availability: { type: array, maxItems: 14, items: { type: object } }
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Business rule conflict
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ProfileResponse:
+      description: Authenticated profile
+      content:
+        application/json:
+          schema:
+            type: object
+            properties: { profile: { type: object } }
+    Error:
+      type: object
+      required: [error, request_id]
+      properties:
+        request_id: { type: string }
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { nullable: true }

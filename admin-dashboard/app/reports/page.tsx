@@ -1,0 +1,8 @@
+import { BarChart3, Download, FileSpreadsheet, Gauge } from 'lucide-react';
+import { ResourcePage } from '@/components/resource-page';
+
+export default function ReportsPage() {
+  return <ResourcePage eyebrow="Insights / controlled exports" title="Reports" description="Generate operational, financial and performance reports from posted backend state, with filters and export audit records." action="Create report" columns={['Report', 'Scope', 'Requested by', 'Created', 'Format', 'Status']}><div className="grid gap-4 border-b border-slate-100 p-5 md:grid-cols-3"><Report icon={<Gauge size={18} />} title="Operations" text="Completion, response time, cancellations and service coverage." /><Report icon={<FileSpreadsheet size={18} />} title="Finance" text="Posted journals, receivables, refunds and settlements." /><Report icon={<BarChart3 size={18} />} title="Performance" text="Ranking, ratings, repeat usage and support trends." /></div><div className="empty-state"><Download className="mx-auto mb-3 text-[var(--amber)]" size={25} /><div className="text-sm font-black text-slate-700">No report jobs requested</div><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Reports are generated from authorized server-side queries and are never assembled from browser-calculated financial values.</p></div></ResourcePage>;
+}
+
+function Report({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) { return <div className="rounded-2xl bg-slate-50 p-4"><div className="mb-3 text-[var(--amber)]">{icon}</div><div className="text-xs font-black">{title}</div><p className="mt-2 text-[11px] leading-5 text-slate-500">{text}</p></div>; }

@@ -1,0 +1,24 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+.pub/
+build/
+coverage/
+*.iml
+
+# Local secrets and generated Supabase files
+.env
+.env.*
+!.env.example
+supabase/.temp/
+
+# Next.js/admin dashboard
+admin-dashboard/node_modules/
+admin-dashboard/.next/
+admin-dashboard/out/
+
+# IDE/OS
+.idea/
+.vscode/
+*.log
+.DS_Store

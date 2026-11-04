@@ -1,0 +1,11 @@
+# Supabase local/deployment configuration.
+# All user-facing functions require a Supabase JWT by default.
+
+[functions.dispatch-worker]
+verify_jwt = false
+
+[functions.razorpay-webhook]
+verify_jwt = false
+
+[functions.reconciliation-worker]
+verify_jwt = false

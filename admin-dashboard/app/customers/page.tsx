@@ -1,0 +1,8 @@
+import { HeartHandshake, Lock, Users } from 'lucide-react';
+import { ResourcePage } from '@/components/resource-page';
+
+export default function CustomersPage() {
+  return <ResourcePage eyebrow="Marketplace / customers" title="Customers" description="Manage customer profiles, verification state, support history, saved professionals and disclosed restrictions without exposing unrelated private records." action="Invite customer" columns={['Customer', 'Verification', 'Bookings', 'Open dues', 'Last seen', 'Status', 'Actions']}><div className="grid gap-4 border-b border-slate-100 p-5 md:grid-cols-3"><Card icon={<Users size={18} />} title="Canonical identity" text="One profile per Auth user with separate customer data." /><Card icon={<Lock size={18} />} title="Private bookings" text="RLS and participant checks prevent cross-customer reads." /><Card icon={<HeartHandshake size={18} />} title="Support context" text="Ticket history is visible only to authorized staff." /></div><div className="empty-state"><Users className="mx-auto mb-3 text-[var(--teal)]" size={25} /><div className="text-sm font-black text-slate-700">No customer records loaded</div><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Customer management will appear after the authorized admin endpoint is connected.</p></div></ResourcePage>;
+}
+
+function Card({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) { return <div className="rounded-2xl bg-slate-50 p-4"><div className="mb-3 text-[var(--teal)]">{icon}</div><div className="text-xs font-black">{title}</div><p className="mt-2 text-[11px] leading-5 text-slate-500">{text}</p></div>; }

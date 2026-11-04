@@ -1,0 +1,8 @@
+import { BadgeCheck, BriefcaseBusiness, Map, Star } from 'lucide-react';
+import { ResourcePage } from '@/components/resource-page';
+
+export default function ProfessionalsPage() {
+  return <ResourcePage eyebrow="Marketplace / network" title="Professionals" description="Review onboarding status, service coverage, availability, ranking signals, performance and restrictions with least-privilege controls." action="Invite professional" columns={['Professional', 'KYC', 'Services', 'Coverage', 'Rating', 'Availability', 'Actions']}><div className="grid gap-4 p-5 sm:grid-cols-3"><Stat icon={<BadgeCheck size={17} />} title="KYC queue" value="No live data" /><Stat icon={<Map size={17} />} title="Coverage map" value="Ready to connect" /><Stat icon={<Star size={17} />} title="Ranking health" value="Audited signals" /></div><div className="border-t border-slate-100"><div className="empty-state"><BriefcaseBusiness className="mx-auto mb-3 text-[var(--coral)]" size={25} /><div className="text-sm font-black text-slate-700">Professional records are private</div><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Authorized staff will see only the fields their role permits. KYC documents remain in private storage and are never rendered as public URLs.</p></div></div></ResourcePage>;
+}
+
+function Stat({ icon, title, value }: { icon: React.ReactNode; title: string; value: string }) { return <div className="rounded-2xl bg-slate-50 p-4"><div className="flex items-center gap-2 text-slate-600">{icon}<span className="text-xs font-black">{title}</span></div><div className="mt-4 text-sm font-black">{value}</div></div>; }

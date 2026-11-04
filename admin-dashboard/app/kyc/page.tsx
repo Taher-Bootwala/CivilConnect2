@@ -1,0 +1,8 @@
+import { FileCheck2, Fingerprint, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { ResourcePage } from '@/components/resource-page';
+
+export default function KycPage() {
+  return <ResourcePage eyebrow="Trust / restricted data" title="KYC review" description="Review professional identity submissions using private signed access, explicit decisions, rejection reasons and immutable audit records." action="Review queue" columns={['Submission', 'Professional', 'Document set', 'Submitted', 'Status', 'Reviewer']}><div className="grid gap-4 border-b border-slate-100 p-5 md:grid-cols-3"><Card icon={<LockKeyhole size={18} />} title="Private by default" text="Documents are stored in a private bucket and exposed through controlled access." /><Card icon={<Fingerprint size={18} />} title="Evidence, not guarantee" text="Identity and background checks support safety operations but are not absolute guarantees." /><Card icon={<ShieldCheck size={18} />} title="Decision trail" text="Every approve, reject or suspend action requires a role and reason." /></div><div className="empty-state"><FileCheck2 className="mx-auto mb-3 text-[var(--teal)]" size={25} /><div className="text-sm font-black text-slate-700">No KYC submissions loaded</div><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Connect the admin KYC endpoint to review authorized submissions.</p></div></ResourcePage>;
+}
+
+function Card({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) { return <div className="rounded-2xl bg-slate-50 p-4"><div className="mb-3 text-[var(--teal)]">{icon}</div><div className="text-xs font-black">{title}</div><p className="mt-2 text-[11px] leading-5 text-slate-500">{text}</p></div>; }

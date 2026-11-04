@@ -1,0 +1,8 @@
+import { ArrowDownLeft, ArrowUpRight, CircleDollarSign, Landmark, ReceiptIndianRupee } from 'lucide-react';
+import { ResourcePage } from '@/components/resource-page';
+
+export default function FinancePage() {
+  return <ResourcePage eyebrow="Finance / append-only" title="Finance & ledger" description="Inspect balanced journals, provider reconciliation, platform receivables, cash settlements, refunds and payout eligibility. Every adjustment needs authorization and a reason." action="Request adjustment" columns={['Journal', 'Type', 'Source', 'Debit', 'Credit', 'State', 'Posted']}><div className="grid gap-4 border-b border-slate-100 p-5 md:grid-cols-4"><Balance icon={<Landmark size={17} />} title="Platform cash" value="—" /><Balance icon={<ArrowDownLeft size={17} />} title="Receivables" value="—" /><Balance icon={<ArrowUpRight size={17} />} title="Payouts pending" value="—" /><Balance icon={<ReceiptIndianRupee size={17} />} title="Refunds pending" value="—" /></div><div className="empty-state"><CircleDollarSign className="mx-auto mb-3 text-[var(--amber)]" size={25} /><div className="text-sm font-black text-slate-700">Ledger data requires finance access</div><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Financial rows are never fabricated in the dashboard. Connect the finance endpoint to load posted journals and reconciliation records.</p></div></ResourcePage>;
+}
+
+function Balance({ icon, title, value }: { icon: React.ReactNode; title: string; value: string }) { return <div className="rounded-2xl bg-slate-50 p-4"><div className="flex items-center gap-2 text-slate-600">{icon}<span className="text-xs font-black">{title}</span></div><div className="mt-4 text-xl font-black tracking-[-.04em]">{value}</div></div>; }

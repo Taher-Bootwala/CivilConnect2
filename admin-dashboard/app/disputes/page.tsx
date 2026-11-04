@@ -1,0 +1,8 @@
+import { Gavel, MessageSquareWarning, Scale } from 'lucide-react';
+import { ResourcePage } from '@/components/resource-page';
+
+export default function DisputesPage() {
+  return <ResourcePage eyebrow="Trust / support" title="Disputes & support" description="Resolve quote and payment disputes with the full evidence bundle: quote versions, photos, chat, timing, location signals and policy snapshots." action="Open ticket" columns={['Ticket', 'Booking', 'Type', 'Priority', 'Owner', 'SLA', 'Status']}><div className="grid gap-4 border-b border-slate-100 p-5 sm:grid-cols-3"><Card icon={<MessageSquareWarning size={18} />} title="Quote disputes" text="Counter-amounts and revisions remain pending until resolved." /><Card icon={<Scale size={18} />} title="Fair decisions" text="Admin resolutions require a written reason and audit event." /><Card icon={<Gavel size={18} />} title="No silent approval" text="Unanswered quotes do not auto-approve; escalation is explicit." /></div><div className="empty-state"><Gavel className="mx-auto mb-3 text-[var(--coral)]" size={25} /><div className="text-sm font-black text-slate-700">Support queue is clear</div><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Open tickets, disputes and escalation timers will appear when the authorized support endpoint is connected.</p></div></ResourcePage>;
+}
+
+function Card({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) { return <div className="rounded-2xl bg-slate-50 p-4"><div className="mb-3 text-[var(--coral)]">{icon}</div><div className="text-xs font-black">{title}</div><p className="mt-2 text-[11px] leading-5 text-slate-500">{text}</p></div>; }

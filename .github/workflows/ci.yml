@@ -1,0 +1,63 @@
+name: CivilConnect CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  flutter:
+    name: Flutter checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: pubspec.yaml
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter analyze
+      - run: flutter test
+      - run: flutter build apk --debug
+
+  admin-dashboard:
+    name: Admin dashboard build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin-dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: admin-dashboard/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run build
+
+  repository-safety:
+    name: Repository safety checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject committed secrets
+        shell: bash
+        run: |
+          ! grep -RInE '(RAZORPAY_KEY_SECRET=([A-Za-z0-9]|\S){12,}|SUPABASE_SERVICE_ROLE_KEY=([A-Za-z0-9]|\S){12,}|BEGIN (RSA|EC|OPENSSH) PRIVATE KEY)' \
+            --exclude-dir=.git --exclude-dir=node_modules --exclude='*.lock' .
+      - name: Check schema policy coverage
+        shell: python
+        run: |
+          import pathlib, re
+          sql = '\n'.join(p.read_text() for p in pathlib.Path('supabase/migrations').glob('*.sql'))
+          tables = set(re.findall(r'create table public\.(\w+)', sql, re.I))
+          policy_tables = set(re.findall(r'create policy \w+ on public\.(\w+)', sql, re.I))
+          missing = tables - policy_tables
+          assert not missing, f'Public tables without named RLS policy: {sorted(missing)}'
+          assert 'enable row level security' in sql.lower()

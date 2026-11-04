@@ -1,0 +1,8 @@
+import { CircleGauge, Percent, Settings2, Tag } from 'lucide-react';
+import { ResourcePage } from '@/components/resource-page';
+
+export default function ServicesPage() {
+  return <ResourcePage eyebrow="Configuration / effective-dated" title="Services & pricing" description="Manage service catalog, estimate guidance, commission precedence, fixed fees, tax policy and cash limits without mutating historical snapshots." action="Add service" columns={['Service', 'Category', 'Estimate range', 'Commission', 'Fixed fee', 'Effective from', 'State']}><div className="grid gap-4 border-b border-slate-100 p-5 md:grid-cols-3"><Policy icon={<Percent size={18} />} title="Commission hierarchy" text="Professional → service → category → global." /><Policy icon={<CircleGauge size={18} />} title="Cash threshold" text="₹5,000 default, warning at 80%, configurable." /><Policy icon={<Settings2 size={18} />} title="Immutable history" text="New versions never rewrite approved bookings." /></div><div className="empty-state"><Tag className="mx-auto mb-3 text-[var(--teal)]" size={25} /><div className="text-sm font-black text-slate-700">No catalog changes loaded</div><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Pricing controls will use effective-dated database records and require the appropriate operations or finance role.</p></div></ResourcePage>;
+}
+
+function Policy({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) { return <div className="rounded-2xl bg-slate-50 p-4"><div className="mb-3 text-[var(--teal)]">{icon}</div><div className="text-xs font-black">{title}</div><p className="mt-2 text-[11px] leading-5 text-slate-500">{text}</p></div>; }
