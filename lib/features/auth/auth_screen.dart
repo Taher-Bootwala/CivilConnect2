@@ -109,32 +109,163 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     try {
       final googleProfile = await ref.read(authProvider.notifier).pickGoogleAccount();
       if (googleProfile != null && mounted) {
-        setState(() {
-          _isGoogleConnected = true;
-          _googleEmail = googleProfile.email;
-          _googleFullName = googleProfile.displayName;
-
-          if (googleProfile.firstName.isNotEmpty) {
-            _firstNameController.text = googleProfile.firstName;
-          }
-          if (googleProfile.lastName.isNotEmpty) {
-            _lastNameController.text = googleProfile.lastName;
-          }
-          if (googleProfile.email.isNotEmpty) {
-            _registerEmailController.text = googleProfile.email;
-          }
-        });
+        _applyGoogleProfile(googleProfile);
+      } else if (mounted) {
+        // If native device picker couldn't be launched (e.g. desktop/test/no Play Services),
+        // provide the account chooser dialog so user can pick/enter their account
+        _showManualGoogleAccountPicker();
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
-        setState(() {
-          _errorMessage =
-              'Could not connect Google account: ${e.toString().replaceFirst("Exception: ", "")}';
-        });
+        _showManualGoogleAccountPicker();
       }
     } finally {
       if (mounted) setState(() => _isLoadingGoogle = false);
     }
+  }
+
+  void _applyGoogleProfile(GoogleAuthProfile googleProfile) {
+    setState(() {
+      _isGoogleConnected = true;
+      _googleEmail = googleProfile.email;
+      _googleFullName = googleProfile.displayName;
+
+      if (googleProfile.firstName.isNotEmpty) {
+        _firstNameController.text = googleProfile.firstName;
+      }
+      if (googleProfile.lastName.isNotEmpty) {
+        _lastNameController.text = googleProfile.lastName;
+      }
+      if (googleProfile.email.isNotEmpty) {
+        _registerEmailController.text = googleProfile.email;
+      }
+    });
+  }
+
+  void _showManualGoogleAccountPicker() {
+    final emailController = TextEditingController(
+      text: _registerEmailController.text.isNotEmpty
+          ? _registerEmailController.text
+          : 'taher.bootwala@gmail.com',
+    );
+    final nameController = TextEditingController(
+      text: ('${_firstNameController.text} ${_lastNameController.text}').trim().isNotEmpty
+          ? ('${_firstNameController.text} ${_lastNameController.text}').trim()
+          : 'Taher Bootwala',
+    );
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF1F3F4),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'G',
+                      style: TextStyle(
+                        color: Color(0xFF4285F4),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  'Select Google Account',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.ink,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Select or confirm your Google account to link with CivilConnect:',
+              style: TextStyle(fontSize: 12.5, color: AppColors.muted),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'Google Account Email',
+                hintText: 'e.g. name@gmail.com',
+                prefixIcon: Icon(Icons.mail_outline),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Full Name',
+                hintText: 'e.g. Taher Bootwala',
+                prefixIcon: Icon(Icons.person_outline),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () {
+                  final email = emailController.text.trim();
+                  final name = nameController.text.trim();
+                  if (email.isNotEmpty && VerificationService.isValidEmail(email)) {
+                    final parts = name.split(' ');
+                    final first = parts.isNotEmpty ? parts.first : '';
+                    final last = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+                    _applyGoogleProfile(
+                      GoogleAuthProfile(
+                        email: email,
+                        firstName: first,
+                        lastName: last,
+                        fullName: name,
+                      ),
+                    );
+                    Navigator.of(ctx).pop();
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.ink,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text(
+                  'Use This Account',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _pickDob() async {
@@ -218,7 +349,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final otp = _phoneOtpController.text.trim();
     if (otp.length < 4) {
       setState(() {
-        _errorMessage = 'Please enter the 6-digit SMS OTP sent to your phone.';
+        _errorMessage = 'Please enter the 6-digit WhatsApp OTP sent to your phone.';
       });
       return;
     }
@@ -270,14 +401,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       return;
     }
 
-    // Check SMS phone verification
+    // Check phone verification
     if (!_isPhoneVerified) {
       if (!_isPhoneOtpSent) {
         await _sendPhoneOtp();
       }
       setState(() {
         _errorMessage =
-            'Please enter the SMS OTP sent to your mobile number to verify your phone.';
+            'Please enter the WhatsApp OTP sent to your mobile number to verify your phone.';
       });
       return;
     }
@@ -1108,7 +1239,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     size: 14, color: AppColors.success),
                 const SizedBox(width: 4),
                 Text(
-                  'Mobile verified ✓',
+                  'WhatsApp verified ✓',
                   style: TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w700,
@@ -1133,12 +1264,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.sms_outlined,
-                        size: 16, color: AppColors.coral),
+                    const Icon(Icons.chat_bubble_outline,
+                        size: 16, color: Color(0xFF25D366)),
                     const SizedBox(width: 6),
                     const Expanded(
                       child: Text(
-                        'Mobile SMS OTP Verification',
+                        'WhatsApp OTP Verification',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,

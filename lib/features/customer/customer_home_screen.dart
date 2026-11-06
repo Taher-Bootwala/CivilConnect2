@@ -40,9 +40,10 @@ class CustomerHomeScreen extends ConsumerWidget {
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 28, 20, 0),
               sliver: SliverToBoxAdapter(
-                child: const SectionTitle(
+                child: SectionTitle(
                   title: 'What do you need help with?',
                   action: 'See all',
+                  onAction: () => context.push('/services'),
                 ),
               ),
             ),
@@ -74,9 +75,10 @@ class CustomerHomeScreen extends ConsumerWidget {
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 30, 20, 0),
               sliver: SliverToBoxAdapter(
-                child: const SectionTitle(
+                child: SectionTitle(
                   title: 'Your active bookings',
                   action: 'View all',
+                  onAction: () => context.push('/bookings'),
                 ),
               ),
             ),

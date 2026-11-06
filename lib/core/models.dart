@@ -179,6 +179,8 @@ class GoogleAuthProfile {
     required this.lastName,
     this.fullName,
     this.avatarUrl,
+    this.idToken,
+    this.accessToken,
   });
 
   final String email;
@@ -186,6 +188,8 @@ class GoogleAuthProfile {
   final String lastName;
   final String? fullName;
   final String? avatarUrl;
+  final String? idToken;
+  final String? accessToken;
 
   String get displayName {
     if (fullName != null && fullName!.trim().isNotEmpty) {

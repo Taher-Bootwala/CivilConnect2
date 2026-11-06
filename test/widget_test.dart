@@ -3,6 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:civilconnect/app/app.dart';
+import 'package:civilconnect/app/providers.dart';
+import 'package:civilconnect/core/models.dart';
+import 'package:civilconnect/core/repository.dart';
 
 void main() {
   testWidgets('CivilConnect displays Continue with Google, DOB, Age calculation, and Gender on Sign Up', (tester) async {
@@ -45,7 +48,21 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(() => tester.view.resetPhysicalSize());
 
-    await tester.pumpWidget(const ProviderScope(child: MyApp()));
+    final testRepo = DemoMarketplaceRepository(
+      mockGoogleProfile: const GoogleAuthProfile(
+        email: 'user.device@gmail.com',
+        firstName: 'Rahul',
+        lastName: 'Sharma',
+        fullName: 'Rahul Sharma',
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [repositoryProvider.overrideWithValue(testRepo)],
+        child: const MyApp(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     // 1. Tap Continue with Google
@@ -101,9 +118,9 @@ void main() {
     final sendSmsOtpBtn = find.text('Send OTP');
     await tester.tap(sendSmsOtpBtn);
     await tester.pumpAndSettle();
-    expect(find.text('Mobile SMS OTP Verification'), findsOneWidget);
+    expect(find.text('WhatsApp OTP Verification'), findsOneWidget);
 
-    // Enter SMS OTP
+    // Enter WhatsApp OTP
     final phoneOtpField = find.widgetWithText(TextFormField, 'Enter 6-digit OTP');
     await tester.enterText(phoneOtpField, '123456');
 
@@ -111,7 +128,7 @@ void main() {
     final verifyBtn = find.widgetWithText(ElevatedButton, 'Verify');
     await tester.tap(verifyBtn);
     await tester.pumpAndSettle();
-    expect(find.text('Mobile verified ✓'), findsOneWidget);
+    expect(find.text('WhatsApp verified ✓'), findsOneWidget);
 
     // 6. Complete Registration
     final registerButton = find.widgetWithText(ElevatedButton, 'Complete Registration');

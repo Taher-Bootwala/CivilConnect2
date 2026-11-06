@@ -40,6 +40,8 @@ class VerificationService {
     String? brevoSenderEmail,
     String? msg91AuthKey,
     String? msg91TemplateId,
+    String? msg91WhatsAppNumber,
+    String? msg91WhatsAppTemplateName,
   })  : _brevoApiKey =
             brevoApiKey ?? const String.fromEnvironment('BREVO_API_KEY'),
         _brevoSenderEmail = brevoSenderEmail ??
@@ -49,12 +51,20 @@ class VerificationService {
         _msg91AuthKey =
             msg91AuthKey ?? const String.fromEnvironment('MSG91_AUTH_KEY'),
         _msg91TemplateId =
-            msg91TemplateId ?? const String.fromEnvironment('MSG91_TEMPLATE_ID');
+            msg91TemplateId ?? const String.fromEnvironment('MSG91_TEMPLATE_ID'),
+        _msg91WhatsAppNumber = msg91WhatsAppNumber ??
+            const String.fromEnvironment('MSG91_WHATSAPP_NUMBER'),
+        _msg91WhatsAppTemplateName = msg91WhatsAppTemplateName ??
+            (const String.fromEnvironment('MSG91_WHATSAPP_TEMPLATE_NAME').isEmpty
+                ? 'otp_verification'
+                : const String.fromEnvironment('MSG91_WHATSAPP_TEMPLATE_NAME'));
 
   final String _brevoApiKey;
   final String _brevoSenderEmail;
   final String _msg91AuthKey;
   final String _msg91TemplateId;
+  final String _msg91WhatsAppNumber;
+  final String _msg91WhatsAppTemplateName;
 
   // In-memory OTP storage for verification (keyed by email / phone)
   final Map<String, _OtpRecord> _emailOtps = {};
@@ -101,7 +111,7 @@ class VerificationService {
     );
 
     // If live Brevo API Key is present, make HTTP REST request
-    if (_brevoApiKey.isNotEmpty) {
+    if (_brevoApiKey.isNotEmpty && !_brevoApiKey.startsWith('your-')) {
       try {
         final client = HttpClient();
         final request = await client.postUrl(
@@ -216,35 +226,83 @@ class VerificationService {
       expiry: DateTime.now().add(const Duration(minutes: 10)),
     );
 
-    // If live MSG91 credentials are provided, make HTTP request
-    if (_msg91AuthKey.isNotEmpty) {
+    // If live MSG91 credentials are provided, send WhatsApp OTP via MSG91
+    if (_msg91AuthKey.isNotEmpty && !_msg91AuthKey.startsWith('your-')) {
+      // 1. Send via MSG91 WhatsApp Outbound Template API
+      if (_msg91WhatsAppNumber.isNotEmpty && !_msg91WhatsAppNumber.startsWith('your-')) {
+        try {
+          final client = HttpClient();
+          final request = await client.postUrl(
+            Uri.parse('https://control.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/'),
+          );
+          request.headers.set('authkey', _msg91AuthKey);
+          request.headers.set('content-type', 'application/json');
+
+          final payload = {
+            'integrated_number': _msg91WhatsAppNumber,
+            'content_type': 'template',
+            'payload': {
+              'messaging_product': 'whatsapp',
+              'type': 'template',
+              'template': {
+                'name': _msg91WhatsAppTemplateName,
+                'language': {'code': 'en', 'policy': 'deterministic'},
+                'to_and_components': [
+                  {
+                    'to': ['91$cleaned'],
+                    'components': {
+                      'body_1': {'type': 'text', 'value': otp},
+                      'button_1': {'subtype': 'url', 'type': 'text', 'value': otp},
+                    },
+                  }
+                ],
+              },
+            },
+          };
+
+          request.write(jsonEncode(payload));
+          final response = await request.close();
+          if (response.statusCode >= 200 && response.statusCode < 300) {
+            return OtpDispatchResult(
+              success: true,
+              provider: 'MSG91 WhatsApp',
+              message: 'WhatsApp OTP sent to +91 $cleaned',
+              devOtp: kDebugMode ? otp : null,
+            );
+          } else {
+            debugPrint('MSG91 WhatsApp API returned status ${response.statusCode}');
+          }
+        } catch (e) {
+          debugPrint('MSG91 WhatsApp request failed: $e');
+        }
+      }
+
+      // 2. Fallback to MSG91 OTP API with whatsapp channel flag
       try {
         final client = HttpClient();
         final uri = Uri.parse(
-          'https://control.msg91.com/api/v5/otp?template_id=${Uri.encodeComponent(_msg91TemplateId)}&mobile=91$cleaned&authkey=${Uri.encodeComponent(_msg91AuthKey)}&otp=$otp',
+          'https://control.msg91.com/api/v5/otp?template_id=${Uri.encodeComponent(_msg91TemplateId)}&mobile=91$cleaned&authkey=${Uri.encodeComponent(_msg91AuthKey)}&otp=$otp&channel=whatsapp',
         );
         final request = await client.getUrl(uri);
         final response = await request.close();
         if (response.statusCode >= 200 && response.statusCode < 300) {
           return OtpDispatchResult(
             success: true,
-            provider: 'MSG91',
-            message: 'SMS OTP sent to +91 $cleaned',
+            provider: 'MSG91 WhatsApp',
+            message: 'WhatsApp OTP sent to +91 $cleaned',
             devOtp: kDebugMode ? otp : null,
           );
-        } else {
-          debugPrint('MSG91 API returned status ${response.statusCode}');
         }
       } catch (e) {
-        debugPrint('MSG91 request failed: $e');
+        debugPrint('MSG91 OTP API request failed: $e');
       }
     }
 
     // Default development/offline handling with generated OTP
     return OtpDispatchResult(
       success: true,
-      provider: 'MSG91',
-      message: 'SMS OTP sent to +91 $cleaned',
+      provider: 'MSG91 WhatsApp',
+      message: 'WhatsApp OTP sent to +91 $cleaned',
       devOtp: otp,
     );
   }

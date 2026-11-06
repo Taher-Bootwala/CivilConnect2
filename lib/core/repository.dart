@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'models.dart';
@@ -57,10 +58,11 @@ abstract interface class MarketplaceRepository {
 }
 
 class DemoMarketplaceRepository implements MarketplaceRepository {
-  DemoMarketplaceRepository()
+  DemoMarketplaceRepository({this.mockGoogleProfile})
       : _bookings = <Booking>[],
         _authStreamController = StreamController<UserProfile?>.broadcast();
 
+  final GoogleAuthProfile? mockGoogleProfile;
   final List<Booking> _bookings;
   final StreamController<UserProfile?> _authStreamController;
   UserProfile? _currentUser;
@@ -106,13 +108,36 @@ class DemoMarketplaceRepository implements MarketplaceRepository {
 
   @override
   Future<GoogleAuthProfile?> signInWithGoogle() async {
-    // Simulated Google account selection for demo / offline environment
-    return const GoogleAuthProfile(
-      email: 'user.google@gmail.com',
-      firstName: 'Rahul',
-      lastName: 'Sharma',
-      fullName: 'Rahul Sharma',
-    );
+    if (mockGoogleProfile != null) {
+      return mockGoogleProfile;
+    }
+    try {
+      final googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'],
+      );
+      // Ensure previous session is cleared so device account picker is always shown
+      await googleSignIn.signOut().catchError((_) => null);
+      final account = await googleSignIn.signIn();
+      if (account == null) {
+        return null; // User cancelled account chooser
+      }
+
+      final fullName = account.displayName ?? '';
+      final parts = fullName.trim().split(' ');
+      final firstName = parts.isNotEmpty ? parts.first : '';
+      final lastName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+
+      return GoogleAuthProfile(
+        email: account.email,
+        firstName: firstName,
+        lastName: lastName,
+        fullName: fullName,
+        avatarUrl: account.photoUrl,
+      );
+    } catch (_) {
+      // In environment without Google Play Services (e.g. desktop/unit tests)
+      return null;
+    }
   }
 
   @override
@@ -513,39 +538,67 @@ class SupabaseMarketplaceRepository implements MarketplaceRepository {
   @override
   Future<GoogleAuthProfile?> signInWithGoogle() async {
     try {
-      await _client.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: 'io.supabase.civilconnect://login-callback',
+      final googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'],
       );
-      final user = _client.auth.currentUser;
-      if (user != null) {
-        final meta = user.userMetadata ?? {};
-        final full = (meta['full_name'] as String?) ?? (meta['name'] as String?) ?? '';
-        final given = (meta['given_name'] as String?) ?? (full.isNotEmpty ? full.split(' ').first : '');
-        final family = (meta['family_name'] as String?) ?? (full.split(' ').length > 1 ? full.split(' ').sublist(1).join(' ') : '');
-        return GoogleAuthProfile(
-          email: user.email ?? '',
-          firstName: given,
-          lastName: family,
-          fullName: full,
-          avatarUrl: meta['avatar_url'] as String?,
+      // Ensure previous session is cleared so device account picker is always shown
+      await googleSignIn.signOut().catchError((_) => null);
+      final account = await googleSignIn.signIn();
+      if (account == null) {
+        return null; // User cancelled account chooser
+      }
+
+      final auth = await account.authentication;
+      final idToken = auth.idToken;
+      final accessToken = auth.accessToken;
+
+      if (idToken != null) {
+        await _client.auth.signInWithIdToken(
+          provider: OAuthProvider.google,
+          idToken: idToken,
+          accessToken: accessToken,
         );
       }
+
+      final fullName = account.displayName ?? '';
+      final parts = fullName.trim().split(' ');
+      final firstName = parts.isNotEmpty ? parts.first : '';
+      final lastName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+
+      return GoogleAuthProfile(
+        email: account.email,
+        firstName: firstName,
+        lastName: lastName,
+        fullName: fullName,
+        avatarUrl: account.photoUrl,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
     } catch (_) {
-      final user = _client.auth.currentUser;
-      if (user != null) {
-        final meta = user.userMetadata ?? {};
-        final full = (meta['full_name'] as String?) ?? '';
-        return GoogleAuthProfile(
-          email: user.email ?? '',
-          firstName: (meta['given_name'] as String?) ?? full.split(' ').first,
-          lastName: (meta['family_name'] as String?) ?? '',
-          fullName: full,
-          avatarUrl: meta['avatar_url'] as String?,
+      // Fallback to web OAuth if native Google Play Services is missing
+      try {
+        await _client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: 'io.supabase.civilconnect://login-callback',
+          queryParams: {'prompt': 'select_account'},
         );
-      }
+        final user = _client.auth.currentUser;
+        if (user != null) {
+          final meta = user.userMetadata ?? {};
+          final full = (meta['full_name'] as String?) ?? (meta['name'] as String?) ?? '';
+          final given = (meta['given_name'] as String?) ?? (full.isNotEmpty ? full.split(' ').first : '');
+          final family = (meta['family_name'] as String?) ?? (full.split(' ').length > 1 ? full.split(' ').sublist(1).join(' ') : '');
+          return GoogleAuthProfile(
+            email: user.email ?? '',
+            firstName: given,
+            lastName: family,
+            fullName: full,
+            avatarUrl: meta['avatar_url'] as String?,
+          );
+        }
+      } catch (_) {}
+      return null;
     }
-    return null;
   }
 
   @override
